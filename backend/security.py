@@ -111,7 +111,7 @@ class SecurityManager:
             
             # Cron and scheduled tasks
             r'crontab\s+',
-            r'at\s+',
+            r'\bat\s+',
             r'batch\s+',
             
             # Database operations (if MySQL/PostgreSQL clients available)
