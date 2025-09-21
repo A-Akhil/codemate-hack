@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Terminal</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
+<body>
+    <div class="terminal-container">
+        <!-- Terminal Header -->
+        <div class="terminal-header">
+            <div class="terminal-title">
+                <span class="terminal-dots">
+                    <span class="dot red"></span>
+                    <span class="dot yellow"></span>
+                    <span class="dot green"></span>
+                </span>
+                <span class="title-text">Web Terminal</span>
+            </div>
+            <div class="terminal-status">
+                <span id="connection-status" class="status-indicator">●</span>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+
+        <!-- Terminal Output Area -->
+        <div class="terminal-body" id="terminal-output">
+            <div class="terminal-line welcome-message">
+                <div class="terminal-content">
+                    <pre>Welcome to Web Terminal v1.0.0
+Type 'help' for available commands or use natural language.
+AI-powered command interpretation enabled.
+---------------------------------------------------</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Input Area -->
+        <div class="terminal-input-container">
+            <div class="terminal-prompt">
+                <span class="prompt-user" id="prompt-user">user</span>
+                <span class="prompt-separator">@</span>
+                <span class="prompt-host" id="prompt-host">web-terminal</span>
+                <span class="prompt-separator">:</span>
+                <span class="prompt-path" id="prompt-path">~</span>
+                <span class="prompt-symbol">$</span>
+            </div>
+            <div class="input-wrapper">
+                <input type="text" id="command-input" class="terminal-input" placeholder="Enter command or describe what you want to do..." autocomplete="off" spellcheck="false">
+                <button id="send-button" class="send-button" title="Send Command">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="L22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="loading-indicator hidden">
+            <div class="loading-spinner"></div>
+            <span>Processing command...</span>
+        </div>
+    </div>
+
+    <!-- Command History Sidebar -->
+    <div id="history-sidebar" class="history-sidebar hidden">
+        <div class="sidebar-header">
+            <h3>Command History</h3>
+            <button id="close-history" class="close-button">×</button>
+        </div>
+        <div class="sidebar-content">
+            <div id="history-list" class="history-list">
+                <!-- History items will be populated here -->
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <button id="clear-history" class="clear-history-btn">Clear History</button>
+        </div>
+    </div>
+
+    <!-- System Info Panel -->
+    <div id="system-info-panel" class="system-info-panel hidden">
+        <div class="panel-header">
+            <h3>System Information</h3>
+            <button id="close-system-info" class="close-button">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="system-info-content">
+                <!-- System info will be populated here -->
+            </div>
+        </div>
+        <div class="panel-footer">
+            <button id="refresh-system-info" class="refresh-btn">Refresh</button>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Help -->
+    <div id="shortcuts-help" class="shortcuts-help hidden">
+        <div class="help-content">
+            <h3>Keyboard Shortcuts</h3>
+            <ul>
+                <li><kbd>↑</kbd> / <kbd>↓</kbd> - Navigate command history</li>
+                <li><kbd>Tab</kbd> - Show command suggestions</li>
+                <li><kbd>Ctrl</kbd> + <kbd>L</kbd> - Clear terminal</li>
+                <li><kbd>Ctrl</kbd> + <kbd>H</kbd> - Toggle command history</li>
+                <li><kbd>Ctrl</kbd> + <kbd>I</kbd> - Show system information</li>
+                <li><kbd>Ctrl</kbd> + <kbd>?</kbd> - Show this help</li>
+                <li><kbd>Enter</kbd> - Execute command</li>
+                <li><kbd>Escape</kbd> - Close panels</li>
+            </ul>
+            <button id="close-shortcuts" class="close-button">×</button>
+        </div>
+    </div>
+
+    <!-- Command Suggestions -->
+    <div id="suggestions-panel" class="suggestions-panel hidden">
+        <div class="suggestions-header">Command Suggestions</div>
+        <div id="suggestions-list" class="suggestions-list">
+            <!-- Suggestions will be populated here -->
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu" class="context-menu hidden">
+        <ul>
+            <li id="copy-command">Copy Command</li>
+            <li id="copy-output">Copy Output</li>
+            <li id="explain-command">Explain Command</li>
+            <li class="separator"></li>
+            <li id="show-history">Show History</li>
+            <li id="show-system-info">System Info</li>
+        </ul>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container">
+        <!-- Notifications will be added here -->
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <button id="history-toggle" class="control-btn" title="Command History (Ctrl+H)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 8V12L16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3.05 13C3.5 15.5 5.5 17.5 8 18.5M21.95 11C21.5 8.5 19.5 6.5 17 5.5M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button id="system-info-toggle" class="control-btn" title="System Information (Ctrl+I)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                <path d="M19.4 15C19.1 13.7 18.3 12.8 17.3 12.1M4.6 9C4.9 10.3 5.7 11.2 6.7 11.9M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button id="help-toggle" class="control-btn" title="Keyboard Shortcuts (Ctrl+?)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                <path d="M9.09 9C9.22 8.73 9.43 8.51 9.71 8.36C9.99 8.2 10.32 8.13 10.66 8.16C11 8.19 11.32 8.31 11.58 8.51C11.84 8.72 12.03 9 12.13 9.32C12.23 9.64 12.23 9.98 12.13 10.3C12.03 10.62 11.84 10.9 11.58 11.11C11.32 11.31 11 11.43 10.66 11.46" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 17H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button id="clear-terminal" class="control-btn" title="Clear Terminal (Ctrl+L)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8 6V4C8 3.45 8.45 3 9 3H15C15.55 3 16 3.45 16 4V6M19 6V20C19 20.55 18.55 21 18 21H6C5.45 21 5 20.55 5 20V6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Include Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Include main JavaScript -->
+    <script src="/static/terminal.js"></script>
+</body>
+</html>

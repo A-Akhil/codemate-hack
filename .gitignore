@@ -1,0 +1,8 @@
+venv
+.env
+env.txt
+project.md
+PROJECT_COMPLETE.md
+rough_note.md
+__pycache__
+sandbox
