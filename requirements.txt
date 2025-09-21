@@ -5,7 +5,8 @@ google-generativeai==0.8.3
 python-dotenv==1.0.1
 psutil==6.0.0
 flask-cors==5.0.0
-eventlet==0.36.1
+gevent==24.2.1
+gevent-websocket==0.10.1
 python-engineio==4.9.1
 python-socketio==5.11.4
 requests==2.32.3

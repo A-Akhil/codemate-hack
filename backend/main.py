@@ -28,8 +28,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-i
 # Enable CORS for cross-origin requests
 CORS(app)
 
-# Initialize SocketIO for real-time communication
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Initialize SocketIO for real-time communication with gevent async mode
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # Initialize components
 command_parser = CommandParser()
