@@ -188,6 +188,32 @@ Output: ERROR: Destructive operation not allowed
             'help', 'clear', 'history'
         }
         
+        # Handle multi-commands with &&
+        if '&&' in command:
+            # Split by && and validate each command separately
+            commands = [cmd.strip() for cmd in command.split('&&')]
+            for cmd in commands:
+                if not cmd:
+                    continue
+                result = self._validate_single_command(cmd, allowed_commands)
+                if not result['valid']:
+                    return result
+            return {'valid': True}
+        else:
+            # Single command validation
+            return self._validate_single_command(command, allowed_commands)
+    
+    def _validate_single_command(self, command: str, allowed_commands: set) -> Dict[str, Any]:
+        """
+        Validate a single command.
+        
+        Args:
+            command (str): Single command to validate
+            allowed_commands (set): Set of allowed commands
+            
+        Returns:
+            Dict containing validation results
+        """
         # Parse command
         command_parts = command.strip().split()
         if not command_parts:

@@ -107,13 +107,29 @@ def handle_command(data):
         if parsed_result['type'] == 'natural_language':
             ai_result = ai_interpreter.interpret(sanitized_input)
             if ai_result['success']:
-                # Re-parse the AI-generated command
-                parsed_result = command_parser.parse(ai_result['command'])
+                ai_command = ai_result['command']
                 emit('response', {
                     'type': 'ai_interpretation',
-                    'message': f"AI interpreted: {ai_result['command']}",
+                    'message': f"AI interpreted: {ai_command}",
                     'timestamp': system_monitor.get_current_time()
                 })
+                
+                # Check if it's a multi-command with &&
+                if '&&' in ai_command:
+                    # Handle as multi-command directly - pass the full command
+                    execution_result = command_executor.execute(
+                        'multi_command',  # Special command type
+                        [ai_command],     # Pass full command as single argument
+                        'ai_generated'
+                    )
+                else:
+                    # Re-parse the AI-generated command for single commands
+                    parsed_result = command_parser.parse(ai_command)
+                    execution_result = command_executor.execute(
+                        parsed_result['command'],
+                        parsed_result['args'],
+                        parsed_result['type']
+                    )
             else:
                 emit('response', {
                     'type': 'error',
@@ -121,13 +137,13 @@ def handle_command(data):
                     'timestamp': system_monitor.get_current_time()
                 })
                 return
-        
-        # Execute the command
-        execution_result = command_executor.execute(
-            parsed_result['command'],
-            parsed_result['args'],
-            parsed_result['type']
-        )
+        else:
+            # Execute the direct command
+            execution_result = command_executor.execute(
+                parsed_result['command'],
+                parsed_result['args'],
+                parsed_result['type']
+            )
         
         # Save command to database
         database_manager.save_command_history(

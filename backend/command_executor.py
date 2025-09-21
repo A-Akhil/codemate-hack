@@ -75,7 +75,8 @@ class CommandExecutor:
             sample_files = [
                 'readme.txt',
                 'sample.log',
-                'config.json'
+                'config.json',
+                'file1.txt'
             ]
             for filename in sample_files:
                 filepath = os.path.join(self.sandbox_dir, filename)
@@ -87,6 +88,16 @@ class CommandExecutor:
                             f.write("2024-01-01 10:00:00 INFO Application started\n2024-01-01 10:01:00 INFO User connected")
                         elif filename == 'config.json':
                             f.write('{"app_name": "web_terminal", "version": "1.0.0", "debug": false}')
+                        elif filename == 'file1.txt':
+                            f.write("This is a sample file for testing file operations.\nYou can move, copy, or edit this file.")
+            
+            # Create some additional directories and files for testing
+            test_files = ['kek']  # Create some additional files as shown in user's output
+            for filename in test_files:
+                filepath = os.path.join(self.sandbox_dir, filename)
+                if not os.path.exists(filepath):
+                    with open(filepath, 'w') as f:
+                        f.write(f"Content of {filename}\n")
         except Exception as e:
             print(f"Warning: Could not set up sandbox: {e}")
     
@@ -117,6 +128,27 @@ class CommandExecutor:
                     'error': 'Command parsing error'
                 }
             
+            # Handle multi-commands with && operator
+            if command_type == 'ai_generated':
+                if command == 'multi_command' and args:
+                    # Full command passed as first argument
+                    return self._execute_multi_command(args[0])
+                else:
+                    # Reconstruct full command from parts
+                    full_command = command + (' ' + ' '.join(args) if args else '')
+                    if '&&' in full_command:
+                        return self._execute_multi_command(full_command)
+                    else:
+                        # Single AI-generated command, execute normally
+                        if command in self.command_handlers:
+                            return self.command_handlers[command](args)
+                        else:
+                            return {
+                                'success': False,
+                                'output': '',
+                                'error': f'Unknown command: {command}. Type "help" for available commands.'
+                            }
+            
             # Handle terminal commands
             if command in self.command_handlers:
                 return self.command_handlers[command](args)
@@ -132,6 +164,65 @@ class CommandExecutor:
                 'success': False,
                 'output': '',
                 'error': f'Execution error: {str(e)}'
+            }
+    
+    def _execute_multi_command(self, full_command: str) -> Dict[str, Any]:
+        """
+        Execute multiple commands connected with && operator.
+        
+        Args:
+            full_command (str): Full command string with && operators
+            
+        Returns:
+            Dict containing execution results
+        """
+        try:
+            # Split by && operator
+            commands = [cmd.strip() for cmd in full_command.split('&&')]
+            outputs = []
+            
+            for cmd in commands:
+                if not cmd:
+                    continue
+                    
+                # Parse individual command
+                parts = cmd.split()
+                if not parts:
+                    continue
+                    
+                command_name = parts[0]
+                command_args = parts[1:] if len(parts) > 1 else []
+                
+                # Execute individual command
+                if command_name in self.command_handlers:
+                    result = self.command_handlers[command_name](command_args)
+                    if not result['success']:
+                        # If any command fails, stop execution and return error
+                        return {
+                            'success': False,
+                            'output': '\n'.join(outputs) + '\n' + (result['output'] or ''),
+                            'error': result['error']
+                        }
+                    if result['output']:
+                        outputs.append(result['output'])
+                else:
+                    return {
+                        'success': False,
+                        'output': '\n'.join(outputs),
+                        'error': f'Unknown command: {command_name}'
+                    }
+            
+            return {
+                'success': True,
+                'output': '\n'.join(outputs),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'Multi-command execution error: {str(e)}'
             }
     
     def _safe_path(self, path: str) -> str:
@@ -430,57 +521,910 @@ You can also use natural language commands like:
         return self._handle_rm(args + ['-r'])
     
     def _handle_cp(self, args: List[str]) -> Dict[str, Any]:
-        """Handle cp command."""
-        return {'success': False, 'output': '', 'error': 'cp command not yet implemented'}
+        """Handle cp (copy) command."""
+        try:
+            if len(args) < 2:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'cp: missing file operand. Usage: cp SOURCE DEST'
+                }
+            
+            source_path = self._safe_path(args[0])
+            dest_path = self._safe_path(args[1])
+            
+            # Check if source exists
+            if not os.path.exists(source_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f"cp: cannot stat '{args[0]}': No such file or directory"
+                }
+            
+            # If destination is a directory, copy source into it
+            if os.path.isdir(dest_path):
+                dest_path = os.path.join(dest_path, os.path.basename(source_path))
+            
+            # Check if destination already exists
+            if os.path.exists(dest_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f"cp: cannot copy '{args[0]}' to '{args[1]}': File exists"
+                }
+            
+            # Perform the copy
+            if os.path.isfile(source_path):
+                shutil.copy2(source_path, dest_path)
+            elif os.path.isdir(source_path):
+                shutil.copytree(source_path, dest_path)
+            else:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f"cp: '{args[0]}' is not a regular file or directory"
+                }
+            
+            return {
+                'success': True,
+                'output': '',
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'cp: {str(e)}'
+            }
     
     def _handle_mv(self, args: List[str]) -> Dict[str, Any]:
-        """Handle mv command."""
-        return {'success': False, 'output': '', 'error': 'mv command not yet implemented'}
+        """Handle mv (move/rename) command."""
+        try:
+            if len(args) < 2:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'mv: missing file operand. Usage: mv SOURCE DEST'
+                }
+            
+            source_path = self._safe_path(args[0])
+            dest_path = self._safe_path(args[1])
+            
+            # Check if source exists
+            if not os.path.exists(source_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f"mv: cannot stat '{args[0]}': No such file or directory"
+                }
+            
+            # If destination is a directory, move source into it
+            if os.path.isdir(dest_path):
+                dest_path = os.path.join(dest_path, os.path.basename(source_path))
+            
+            # Check if destination already exists
+            if os.path.exists(dest_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f"mv: cannot move '{args[0]}' to '{args[1]}': File exists"
+                }
+            
+            # Perform the move
+            shutil.move(source_path, dest_path)
+            
+            return {
+                'success': True,
+                'output': '',
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'mv: {str(e)}'
+            }
     
     def _handle_head(self, args: List[str]) -> Dict[str, Any]:
-        """Handle head command."""
-        return {'success': False, 'output': '', 'error': 'head command not yet implemented'}
+        """Handle head command - display first lines of a file."""
+        try:
+            lines = 10  # default
+            file_path = None
+            
+            # Parse arguments
+            i = 0
+            while i < len(args):
+                if args[i] == '-n' and i + 1 < len(args):
+                    try:
+                        lines = int(args[i + 1])
+                        i += 2
+                    except ValueError:
+                        return {
+                            'success': False,
+                            'output': '',
+                            'error': f'head: invalid number of lines: {args[i + 1]}'
+                        }
+                elif args[i].startswith('-') and args[i][1:].isdigit():
+                    lines = int(args[i][1:])
+                    i += 1
+                else:
+                    file_path = args[i]
+                    i += 1
+            
+            if not file_path:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'head: missing file operand'
+                }
+            
+            safe_path = self._safe_path(file_path)
+            
+            if not os.path.exists(safe_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'head: cannot open \'{file_path}\' for reading: No such file or directory'
+                }
+            
+            if os.path.isdir(safe_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'head: error reading \'{file_path}\': Is a directory'
+                }
+            
+            with open(safe_path, 'r', encoding='utf-8', errors='ignore') as f:
+                result_lines = []
+                for i, line in enumerate(f):
+                    if i >= lines:
+                        break
+                    result_lines.append(line.rstrip())
+            
+            return {
+                'success': True,
+                'output': '\n'.join(result_lines),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'head: {str(e)}'
+            }
     
     def _handle_tail(self, args: List[str]) -> Dict[str, Any]:
-        """Handle tail command."""
-        return {'success': False, 'output': '', 'error': 'tail command not yet implemented'}
+        """Handle tail command - display last lines of a file."""
+        try:
+            lines = 10  # default
+            file_path = None
+            
+            # Parse arguments
+            i = 0
+            while i < len(args):
+                if args[i] == '-n' and i + 1 < len(args):
+                    try:
+                        lines = int(args[i + 1])
+                        i += 2
+                    except ValueError:
+                        return {
+                            'success': False,
+                            'output': '',
+                            'error': f'tail: invalid number of lines: {args[i + 1]}'
+                        }
+                elif args[i].startswith('-') and args[i][1:].isdigit():
+                    lines = int(args[i][1:])
+                    i += 1
+                else:
+                    file_path = args[i]
+                    i += 1
+            
+            if not file_path:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'tail: missing file operand'
+                }
+            
+            safe_path = self._safe_path(file_path)
+            
+            if not os.path.exists(safe_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'tail: cannot open \'{file_path}\' for reading: No such file or directory'
+                }
+            
+            if os.path.isdir(safe_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'tail: error reading \'{file_path}\': Is a directory'
+                }
+            
+            with open(safe_path, 'r', encoding='utf-8', errors='ignore') as f:
+                all_lines = f.readlines()
+                
+            # Get last 'lines' number of lines
+            result_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+            result_lines = [line.rstrip() for line in result_lines]
+            
+            return {
+                'success': True,
+                'output': '\n'.join(result_lines),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'tail: {str(e)}'
+            }
     
     def _handle_find(self, args: List[str]) -> Dict[str, Any]:
-        """Handle find command."""
-        return {'success': False, 'output': '', 'error': 'find command not yet implemented'}
+        """Handle find command - search for files and directories."""
+        try:
+            if not args:
+                search_dir = self.current_dir
+                pattern = '*'
+            elif len(args) == 1:
+                search_dir = self.current_dir
+                pattern = args[0]
+            else:
+                search_dir = self._safe_path(args[0])
+                pattern = args[1] if len(args) > 1 else '*'
+            
+            # Ensure search is within sandbox
+            if not search_dir.startswith(self.sandbox_dir):
+                search_dir = self.sandbox_dir
+            
+            results = []
+            
+            # Simple find implementation
+            for root, dirs, files in os.walk(search_dir):
+                # Search directories
+                for dir_name in dirs:
+                    if pattern == '*' or pattern in dir_name:
+                        rel_path = os.path.relpath(os.path.join(root, dir_name), self.current_dir)
+                        results.append(f'./{rel_path}')
+                
+                # Search files
+                for file_name in files:
+                    if pattern == '*' or pattern in file_name:
+                        rel_path = os.path.relpath(os.path.join(root, file_name), self.current_dir)
+                        results.append(f'./{rel_path}')
+            
+            if not results:
+                return {
+                    'success': True,
+                    'output': f'find: no files or directories matching "{pattern}" found',
+                    'error': None
+                }
+            
+            return {
+                'success': True,
+                'output': '\n'.join(sorted(results)),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'find: {str(e)}'
+            }
     
     def _handle_tree(self, args: List[str]) -> Dict[str, Any]:
-        """Handle tree command."""
-        return {'success': False, 'output': '', 'error': 'tree command not yet implemented'}
+        """Handle tree command - display directory tree structure."""
+        try:
+            # Default to current directory
+            root_path = self.current_dir
+            max_depth = None
+            
+            # Parse arguments
+            i = 0
+            while i < len(args):
+                if args[i] == '-L' and i + 1 < len(args):
+                    try:
+                        max_depth = int(args[i + 1])
+                        i += 2
+                    except ValueError:
+                        return {
+                            'success': False,
+                            'output': '',
+                            'error': f'tree: invalid level: {args[i + 1]}'
+                        }
+                elif args[i].startswith('-L') and len(args[i]) > 2:
+                    try:
+                        max_depth = int(args[i][2:])
+                        i += 1
+                    except ValueError:
+                        return {
+                            'success': False,
+                            'output': '',
+                            'error': f'tree: invalid level: {args[i][2:]}'
+                        }
+                else:
+                    root_path = self._safe_path(args[i])
+                    i += 1
+            
+            if not os.path.exists(root_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'tree: {args[0] if args and not args[0].startswith("-") else root_path}: No such file or directory'
+                }
+            
+            if not os.path.isdir(root_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'tree: {args[0] if args and not args[0].startswith("-") else root_path}: Not a directory'
+                }
+            
+            # Generate tree structure
+            def generate_tree(path, prefix="", depth=0):
+                if max_depth is not None and depth >= max_depth:
+                    return []
+                
+                items = []
+                try:
+                    entries = sorted(os.listdir(path))
+                    dirs = [e for e in entries if os.path.isdir(os.path.join(path, e))]
+                    files = [e for e in entries if os.path.isfile(os.path.join(path, e))]
+                    all_entries = dirs + files
+                    
+                    for i, entry in enumerate(all_entries):
+                        is_last = i == len(all_entries) - 1
+                        current_prefix = "└── " if is_last else "├── "
+                        items.append(f"{prefix}{current_prefix}{entry}")
+                        
+                        entry_path = os.path.join(path, entry)
+                        if os.path.isdir(entry_path) and (max_depth is None or depth + 1 < max_depth):
+                            extension = "    " if is_last else "│   "
+                            items.extend(generate_tree(entry_path, prefix + extension, depth + 1))
+                            
+                except PermissionError:
+                    items.append(f"{prefix}[error opening dir]")
+                
+                return items
+            
+            # Start with root directory name
+            root_name = os.path.basename(root_path) or root_path
+            result = [root_name]
+            
+            # Add tree structure
+            tree_lines = generate_tree(root_path)
+            result.extend(tree_lines)
+            
+            # Count directories and files
+            dir_count = 0
+            file_count = 0
+            for root, dirs, files in os.walk(root_path):
+                dir_count += len(dirs)
+                file_count += len(files)
+            
+            result.append("")
+            result.append(f"{dir_count} directories, {file_count} files")
+            
+            return {
+                'success': True,
+                'output': '\n'.join(result),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'tree: {str(e)}'
+            }
     
     def _handle_stat(self, args: List[str]) -> Dict[str, Any]:
-        """Handle stat command."""
-        return {'success': False, 'output': '', 'error': 'stat command not yet implemented'}
+        """Handle stat command - display file or filesystem status."""
+        try:
+            if not args:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'stat: missing operand'
+                }
+            
+            file_path = args[0]
+            safe_path = self._safe_path(file_path)
+            
+            if not os.path.exists(safe_path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'stat: cannot stat \'{file_path}\': No such file or directory'
+                }
+            
+            import time
+            import pwd
+            import grp
+            import stat as stat_module
+            
+            # Get file stats
+            file_stat = os.stat(safe_path)
+            
+            # File type and permissions
+            mode = file_stat.st_mode
+            if stat_module.S_ISDIR(mode):
+                file_type = "directory"
+            elif stat_module.S_ISREG(mode):
+                file_type = "regular file"
+            elif stat_module.S_ISLNK(mode):
+                file_type = "symbolic link"
+            else:
+                file_type = "special file"
+            
+            # Permissions
+            perms = stat_module.filemode(mode)
+            
+            # Owner and group
+            try:
+                owner = pwd.getpwuid(file_stat.st_uid).pw_name
+            except:
+                owner = str(file_stat.st_uid)
+            
+            try:
+                group = grp.getgrgid(file_stat.st_gid).gr_name
+            except:
+                group = str(file_stat.st_gid)
+            
+            # Times
+            access_time = time.ctime(file_stat.st_atime)
+            modify_time = time.ctime(file_stat.st_mtime)
+            change_time = time.ctime(file_stat.st_ctime)
+            
+            # Build output
+            output = f"  File: {file_path}\n"
+            output += f"  Size: {file_stat.st_size:<10} Blocks: {file_stat.st_blocks:<10} IO Block: {file_stat.st_blksize} {file_type}\n"
+            output += f"Device: {file_stat.st_dev:x}h/{file_stat.st_dev}d    Inode: {file_stat.st_ino:<10} Links: {file_stat.st_nlink}\n"
+            output += f"Access: ({oct(stat_module.S_IMODE(mode))}/{perms})  Uid: ({file_stat.st_uid:>5}/{owner:<8}) Gid: ({file_stat.st_gid:>5}/{group:<8})\n"
+            output += f"Access: {access_time}\n"
+            output += f"Modify: {modify_time}\n"
+            output += f"Change: {change_time}\n"
+            output += f" Birth: -"
+            
+            return {
+                'success': True,
+                'output': output,
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'stat: {str(e)}'
+            }
     
     def _handle_grep(self, args: List[str]) -> Dict[str, Any]:
-        """Handle grep command."""
-        return {'success': False, 'output': '', 'error': 'grep command not yet implemented'}
+        """Handle grep command - search for text patterns in files."""
+        try:
+            if len(args) < 2:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'grep: usage: grep pattern file [file...]'
+                }
+            
+            pattern = args[0]
+            file_paths = args[1:]
+            results = []
+            
+            for file_path in file_paths:
+                safe_path = self._safe_path(file_path)
+                
+                if not os.path.exists(safe_path):
+                    results.append(f'grep: {file_path}: No such file or directory')
+                    continue
+                
+                if os.path.isdir(safe_path):
+                    results.append(f'grep: {file_path}: Is a directory')
+                    continue
+                
+                try:
+                    with open(safe_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        line_num = 1
+                        for line in f:
+                            if pattern in line:
+                                if len(file_paths) > 1:
+                                    results.append(f'{file_path}:{line_num}:{line.rstrip()}')
+                                else:
+                                    results.append(f'{line_num}:{line.rstrip()}')
+                            line_num += 1
+                            
+                except Exception as e:
+                    results.append(f'grep: {file_path}: {str(e)}')
+            
+            return {
+                'success': True,
+                'output': '\n'.join(results) if results else '',
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'grep: {str(e)}'
+            }
     
     def _handle_wc(self, args: List[str]) -> Dict[str, Any]:
-        """Handle wc command."""
-        return {'success': False, 'output': '', 'error': 'wc command not yet implemented'}
+        """Handle wc command - word, line, character, and byte count."""
+        try:
+            if not args:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'wc: missing file operand'
+                }
+            
+            show_lines = True
+            show_words = True
+            show_chars = True
+            files = []
+            
+            # Parse arguments
+            i = 0
+            while i < len(args):
+                if args[i] == '-l':
+                    show_lines, show_words, show_chars = True, False, False
+                    i += 1
+                elif args[i] == '-w':
+                    show_lines, show_words, show_chars = False, True, False
+                    i += 1
+                elif args[i] == '-c':
+                    show_lines, show_words, show_chars = False, False, True
+                    i += 1
+                else:
+                    files.append(args[i])
+                    i += 1
+            
+            if not files:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'wc: missing file operand'
+                }
+            
+            results = []
+            total_lines = total_words = total_chars = 0
+            
+            for file_path in files:
+                safe_path = self._safe_path(file_path)
+                
+                if not os.path.exists(safe_path):
+                    results.append(f'wc: {file_path}: No such file or directory')
+                    continue
+                
+                if os.path.isdir(safe_path):
+                    results.append(f'wc: {file_path}: Is a directory')
+                    continue
+                
+                try:
+                    with open(safe_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                        
+                    lines = content.count('\n')
+                    words = len(content.split())
+                    chars = len(content)
+                    
+                    total_lines += lines
+                    total_words += words
+                    total_chars += chars
+                    
+                    counts = []
+                    if show_lines:
+                        counts.append(str(lines))
+                    if show_words:
+                        counts.append(str(words))
+                    if show_chars:
+                        counts.append(str(chars))
+                    
+                    results.append(f"{' '.join(counts)} {file_path}")
+                    
+                except Exception as e:
+                    results.append(f'wc: {file_path}: {str(e)}')
+            
+            # Add total if multiple files
+            if len(files) > 1:
+                counts = []
+                if show_lines:
+                    counts.append(str(total_lines))
+                if show_words:
+                    counts.append(str(total_words))
+                if show_chars:
+                    counts.append(str(total_chars))
+                results.append(f"{' '.join(counts)} total")
+            
+            return {
+                'success': True,
+                'output': '\n'.join(results),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'wc: {str(e)}'
+            }
     
     def _handle_sort(self, args: List[str]) -> Dict[str, Any]:
-        """Handle sort command."""
-        return {'success': False, 'output': '', 'error': 'sort command not yet implemented'}
+        """Handle sort command - sort lines of text files."""
+        try:
+            if not args:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'sort: missing file operand'
+                }
+            
+            reverse = False
+            numeric = False
+            files = []
+            
+            # Parse arguments
+            i = 0
+            while i < len(args):
+                if args[i] == '-r':
+                    reverse = True
+                    i += 1
+                elif args[i] == '-n':
+                    numeric = True
+                    i += 1
+                else:
+                    files.append(args[i])
+                    i += 1
+            
+            if not files:
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': 'sort: missing file operand'
+                }
+            
+            all_lines = []
+            
+            for file_path in files:
+                safe_path = self._safe_path(file_path)
+                
+                if not os.path.exists(safe_path):
+                    return {
+                        'success': False,
+                        'output': '',
+                        'error': f'sort: cannot read: {file_path}: No such file or directory'
+                    }
+                
+                if os.path.isdir(safe_path):
+                    return {
+                        'success': False,
+                        'output': '',
+                        'error': f'sort: read failed: {file_path}: Is a directory'
+                    }
+                
+                try:
+                    with open(safe_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+                        all_lines.extend([line.rstrip() for line in lines])
+                        
+                except Exception as e:
+                    return {
+                        'success': False,
+                        'output': '',
+                        'error': f'sort: {file_path}: {str(e)}'
+                    }
+            
+            # Sort the lines
+            if numeric:
+                try:
+                    all_lines.sort(key=lambda x: float(x) if x.replace('.', '').replace('-', '').isdigit() else float('inf'), reverse=reverse)
+                except:
+                    all_lines.sort(reverse=reverse)
+            else:
+                all_lines.sort(reverse=reverse)
+            
+            return {
+                'success': True,
+                'output': '\n'.join(all_lines),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'sort: {str(e)}'
+            }
     
     def _handle_ps(self, args: List[str]) -> Dict[str, Any]:
-        """Handle ps command."""
-        return {'success': False, 'output': '', 'error': 'ps command not yet implemented'}
+        """Handle ps command - show running processes."""
+        try:
+            import psutil
+            processes = []
+            
+            for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+                try:
+                    processes.append(proc.info)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            
+            # Sort by PID
+            processes.sort(key=lambda x: x['pid'])
+            
+            # Format output
+            output_lines = ['  PID  %CPU %MEM COMMAND']
+            for proc in processes[:20]:  # Show first 20 processes
+                pid = proc['pid']
+                name = proc['name'][:15]  # Truncate long names
+                cpu = proc['cpu_percent'] or 0
+                mem = proc['memory_percent'] or 0
+                output_lines.append(f'{pid:5d} {cpu:4.1f} {mem:4.1f} {name}')
+            
+            return {
+                'success': True,
+                'output': '\n'.join(output_lines),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'ps: {str(e)}'
+            }
     
     def _handle_uptime(self, args: List[str]) -> Dict[str, Any]:
-        """Handle uptime command."""
-        return {'success': False, 'output': '', 'error': 'uptime command not yet implemented'}
+        """Handle uptime command - show system uptime."""
+        try:
+            import time
+            import os
+            
+            # Get system uptime
+            try:
+                with open('/proc/uptime', 'r') as f:
+                    uptime_seconds = float(f.readline().split()[0])
+            except:
+                # Fallback for systems without /proc/uptime
+                uptime_seconds = time.time() - os.path.getctime('/proc')
+            
+            # Convert to human readable format
+            days = int(uptime_seconds // 86400)
+            hours = int((uptime_seconds % 86400) // 3600)
+            minutes = int((uptime_seconds % 3600) // 60)
+            
+            # Format uptime string
+            uptime_str = ""
+            if days > 0:
+                uptime_str += f"{days} day{'s' if days != 1 else ''}, "
+            if hours > 0:
+                uptime_str += f"{hours}:{minutes:02d}, "
+            else:
+                uptime_str += f"{minutes} min, "
+            
+            # Get current time
+            current_time = time.strftime("%H:%M:%S")
+            
+            # Get load average (if available)
+            try:
+                with open('/proc/loadavg', 'r') as f:
+                    load_avg = f.readline().split()[:3]
+                    load_str = f"load average: {', '.join(load_avg)}"
+            except:
+                load_str = "load average: N/A"
+            
+            # Get number of users (simplified)
+            try:
+                import subprocess
+                result = subprocess.run(['who'], capture_output=True, text=True, timeout=5)
+                user_count = len(result.stdout.strip().split('\n')) if result.stdout.strip() else 0
+            except:
+                user_count = 1  # assume at least current user
+            
+            output = f" {current_time} up {uptime_str}{user_count} user{'s' if user_count != 1 else ''}, {load_str}"
+            
+            return {
+                'success': True,
+                'output': output,
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'uptime: {str(e)}'
+            }
     
     def _handle_disk(self, args: List[str]) -> Dict[str, Any]:
-        """Handle disk command."""
-        return {'success': False, 'output': '', 'error': 'disk command not yet implemented'}
+        """Handle disk command - show disk usage information."""
+        try:
+            import shutil
+            
+            # Default to current directory
+            path = self.current_dir
+            if args:
+                path = self._safe_path(args[0])
+            
+            if not os.path.exists(path):
+                return {
+                    'success': False,
+                    'output': '',
+                    'error': f'disk: {args[0] if args else path}: No such file or directory'
+                }
+            
+            # Get disk usage
+            total, used, free = shutil.disk_usage(path)
+            
+            # Convert bytes to human readable format
+            def format_bytes(bytes_val):
+                for unit in ['B', 'K', 'M', 'G', 'T']:
+                    if bytes_val < 1024.0:
+                        return f"{bytes_val:.1f}{unit}"
+                    bytes_val /= 1024.0
+                return f"{bytes_val:.1f}P"
+            
+            total_str = format_bytes(total)
+            used_str = format_bytes(used)
+            free_str = format_bytes(free)
+            
+            # Calculate percentage
+            percent_used = (used / total * 100) if total > 0 else 0
+            
+            # Format output similar to df command
+            output = f"Filesystem     Size  Used Avail Use% Mounted on\n"
+            output += f"{path:<14} {total_str:>4} {used_str:>4} {free_str:>5} {percent_used:>3.0f}% {path}"
+            
+            return {
+                'success': True,
+                'output': output,
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'disk: {str(e)}'
+            }
     
     def _handle_env(self, args: List[str]) -> Dict[str, Any]:
-        """Handle env command."""
-        return {'success': False, 'output': '', 'error': 'env command not yet implemented'}
+        """Handle env command - show environment variables."""
+        try:
+            env_vars = []
+            
+            # Show some common environment variables (filtered for security)
+            safe_vars = ['PATH', 'HOME', 'USER', 'SHELL', 'TERM', 'PWD', 'LANG', 'LC_ALL']
+            
+            for var in safe_vars:
+                value = os.environ.get(var, '')
+                if value:
+                    env_vars.append(f'{var}={value}')
+            
+            # Add some custom variables
+            env_vars.extend([
+                'TERMINAL_TYPE=web_terminal',
+                'SANDBOX_MODE=enabled',
+                f'CURRENT_DIR={self.current_dir}'
+            ])
+            
+            return {
+                'success': True,
+                'output': '\n'.join(env_vars),
+                'error': None
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': f'env: {str(e)}'
+            }
