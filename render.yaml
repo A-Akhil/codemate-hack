@@ -3,7 +3,7 @@ services:
     name: web-terminal
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app --worker-class gevent --workers 1
+    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app --workers 1
     envVars:
       - key: SUPABASE_URL
         sync: false
