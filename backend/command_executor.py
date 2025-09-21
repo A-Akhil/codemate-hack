@@ -20,7 +20,16 @@ class CommandExecutor:
     
     def __init__(self, sandbox_dir: str = None):
         # Set up sandbox directory for safe operations
-        self.sandbox_dir = sandbox_dir or os.path.join(os.getcwd(), 'sandbox')
+        # Use persistent storage path in production, local sandbox in development
+        if sandbox_dir:
+            self.sandbox_dir = sandbox_dir
+        elif os.environ.get('FLASK_ENV') == 'production':
+            # Use mounted persistent storage in production
+            self.sandbox_dir = '/app/sandbox'
+        else:
+            # Use local sandbox for development
+            self.sandbox_dir = os.path.join(os.getcwd(), 'sandbox')
+            
         self.current_dir = self.sandbox_dir
         self.max_file_size = 10 * 1024 * 1024  # 10MB max file size
         self.max_output_length = 10000  # Max output length

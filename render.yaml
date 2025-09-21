@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: web-terminal
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./start-production.sh
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    healthCheckPath: /health
+    disk:
+      name: sandbox-storage
+      mountPath: /app/sandbox
+      sizeGB: 1

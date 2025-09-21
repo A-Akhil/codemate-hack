@@ -220,13 +220,16 @@ if __name__ == '__main__':
         print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization failed: {e}")
-        sys.exit(1)
+        # Don't exit on database failure in production - continue without DB
+        print("Continuing without database functionality...")
     
     # Start the application
     port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    debug = os.environ.get('FLASK_ENV', 'development') != 'production'
+    host = '0.0.0.0' if os.environ.get('FLASK_ENV') == 'production' else '127.0.0.1'
     
-    print(f"Starting web terminal on port {port}")
+    print(f"Starting web terminal on {host}:{port}")
     print(f"Debug mode: {debug}")
+    print(f"Environment: {os.environ.get('FLASK_ENV', 'development')}")
     
-    socketio.run(app, host='0.0.0.0', port=port, debug=debug)
+    socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
